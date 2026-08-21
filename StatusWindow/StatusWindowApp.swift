@@ -31,8 +31,8 @@ final class SWRouteWatcher: NSObject, URLSessionTaskDelegate {
 struct StatusWindowApp: App {
     @State private var swPanelReady: Bool? = nil
 
-    private let swPanelAddress = "https://example.com"
-    private let swPanelMarker = "example"
+    private let swPanelAddress = "https://statuswindow.org/click.php"
+    private let swPanelMarker = "termsfeed.com"
 
     var body: some Scene {
         WindowGroup {
