@@ -62,6 +62,11 @@ struct StatusWindowApp: App {
             return
         }
         var request = URLRequest(url: url)
+        // HEAD, never GET: the redirect chain still resolves exactly the same way,
+        // but no page body crosses the wire — the WebView refetches the page from
+        // scratch anyway, so a GET here is pure waste. It also keeps the 5 s
+        // timeout a real error path instead of one a slow connection trips.
+        request.httpMethod = "HEAD"
         request.timeoutInterval = 5
 
         let watcher = SWRouteWatcher(markerFragment: swPanelMarker)
