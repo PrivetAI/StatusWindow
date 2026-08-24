@@ -7,13 +7,11 @@ workflows:
       app_store_connect: 'Status Window'
     environment:
       ios_signing:
-        # Manual signing: certificate and provisioning profile are uploaded by hand
-        # in Codemagic UI (Team settings > codemagic.yaml settings > Code signing
-        # identities) under the reference name below — NOT fetched automatically.
-        provisioning_profiles:
-          - 'Status Window'
-        certificates:
-          - 'Status Window'
+        # Автоматическая подпись: Codemagic сам забирает сертификат и
+        # provisioning profile из Apple Developer Portal по ключу ASC,
+        # указанному в integrations выше. Ручная загрузка файлов в UI не нужна.
+        distribution_type: app_store
+        bundle_identifier: com.emilsgailis.statuswindow
       vars:
         BUNDLE_ID: "com.emilsgailis.statuswindow"
         XCODE_WORKSPACE: "Status Window.xcodeproj"
