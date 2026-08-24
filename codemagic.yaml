@@ -6,26 +6,27 @@ workflows:
     integrations:
       app_store_connect: 'Status Window'
     environment:
+      # Блока ios_signing здесь нет намеренно: он резолвит профиль из хранилища
+      # Codemagic, а загрузить туда .mobileprovision невозможно — компонент
+      # загрузки не реагирует на файлы. Подпись целиком делаем скриптами.
       vars:
         BUNDLE_ID: "com.emilsgailis.statuswindow"
         XCODE_WORKSPACE: "Status Window.xcodeproj"
         XCODE_SCHEME: "Status Window"
       xcode: latest
     scripts:
-      # Блок ios_signing не используется: он резолвит профили из хранилища
-      # Codemagic, а загрузить туда .mobileprovision невозможно — компонент
-      # загрузки не принимает файлы. Вместо этого тянем сертификат и профили
-      # прямо из Apple по ключу ASC, который интеграция выше кладёт в
-      # переменные APP_STORE_CONNECT_*.
+      # CERTIFICATE_PRIVATE_KEY приходит переменной сборки при запуске через
+      # API и в репозитории не хранится. APP_STORE_CONNECT_* подставляет
+      # интеграция выше.
+      - name: Set up keychain
+        script: keychain initialize
       - name: Fetch signing files
         script: |
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE \
             --create
-      - name: Set up keychain
-        script: |
-          keychain initialize
-          keychain add-certificates
+      - name: Add certificates to keychain
+        script: keychain add-certificates
       - name: Set up provisioning profiles settings on Xcode project
         script: xcode-project use-profiles
       - name: Build ipa for distribution
