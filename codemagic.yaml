@@ -13,17 +13,24 @@ workflows:
         BUNDLE_ID: "com.emilsgailis.statuswindow"
         XCODE_WORKSPACE: "Status Window.xcodeproj"
         XCODE_SCHEME: "Status Window"
+        APP_STORE_APPLE_ID: 6804669472
       xcode: latest
     scripts:
-      # CERTIFICATE_PRIVATE_KEY приходит переменной сборки при запуске через
-      # API и в репозитории не хранится. APP_STORE_CONNECT_* подставляет
-      # интеграция выше.
       - name: Set up keychain
         script: keychain initialize
       - name: Fetch signing files
         script: |
+          # Ключ для сертификата создаём прямо в сборке. Раньше он приходил
+          # переменной CERTIFICATE_PRIVATE_KEY при запуске через API, и запуск
+          # из интерфейса падал на «Cannot save Signing Certificates without
+          # certificate private key». Так секрет ещё и нигде не хранится.
+          # Обратная сторона: каждая сборка выпускает новый
+          # distribution-сертификат, а у Apple их лимит два на аккаунт —
+          # лишние отзывать вручную в портале.
+          openssl genrsa 2048 | openssl pkcs8 -topk8 -nocrypt -out /tmp/signing_key.pem
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE \
+            --certificate-key=@file:/tmp/signing_key.pem \
             --create
       - name: Add certificates to keychain
         script: keychain add-certificates
