@@ -261,9 +261,6 @@ struct SWLockView: View {
                     }
                     .padding(.top, 12)
                     .frame(maxWidth: .infinity, minHeight: geo.size.height)
-                    // iPad: a single unlock button stretched across the whole
-                    // display reads as a broken layout. No effect on a phone.
-                    .swColumnCap(SWMetrics.narrowMaxWidth)
                 }
             }
         }

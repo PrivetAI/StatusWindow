@@ -4,17 +4,14 @@ import SwiftUI
 
 struct SWTimelineView: View {
     @ObservedObject var store: SWStore
-    @Environment(\.horizontalSizeClass) private var hSize
     @State private var now = Date()
     @State private var showCovered = false
 
     private let ticker = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     private var contentWidth: CGFloat {
-        // Page padding (16 × 2) plus card padding (14 × 2) are both subtracted —
-        // from the column the cards are actually laid out in, never from the
-        // screen: on an iPad the column is capped and the screen is not.
-        max(180, SWMetrics.contentWidth(for: hSize) - 60)
+        // Page padding (16 × 2) plus card padding (14 × 2) are both subtracted.
+        max(180, SWMetrics.screenWidth - 60)
     }
 
     private var schedule: SWSchedule { store.schedule }

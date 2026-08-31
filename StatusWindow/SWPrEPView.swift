@@ -5,7 +5,6 @@ import SwiftUI
 struct SWPrEPView: View {
     @ObservedObject var store: SWStore
     @Environment(\.presentationMode) private var presentationMode
-    @Environment(\.horizontalSizeClass) private var hSize
 
     @State private var now = Date()
     @State private var showAddSequence = false
@@ -17,9 +16,7 @@ struct SWPrEPView: View {
     private var style: SWDateStyle { store.preferences.dateStyle }
 
     private var contentWidth: CGFloat {
-        // Page padding (16 × 2) plus card padding (14 × 2), subtracted from the
-        // column the cards are actually laid out in rather than from the screen.
-        max(180, SWMetrics.contentWidth(for: hSize) - 60)
+        max(180, SWMetrics.screenWidth - 60)
     }
 
     var body: some View {

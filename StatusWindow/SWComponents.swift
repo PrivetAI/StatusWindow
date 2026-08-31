@@ -184,10 +184,7 @@ struct SWScreen<Header: View, Content: View>: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Capped on the same column as the content below it, so the title and
-            // the cards share one left edge on iPad. The hairline stays full bleed.
             header()
-                .swColumnCap()
             Rectangle()
                 .fill(SWTheme.hairline)
                 .frame(height: 1)
@@ -199,9 +196,6 @@ struct SWScreen<Header: View, Content: View>: View {
                 .padding(.top, 14)
                 .padding(.bottom, bottomInset)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                // iPad: the reading column is capped and centred instead of a
-                // card being stretched to ~1000 pt. No effect on a phone.
-                .swColumnCap()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
