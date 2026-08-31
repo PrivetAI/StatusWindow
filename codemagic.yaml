@@ -6,9 +6,18 @@ workflows:
     integrations:
       app_store_connect: 'Status Window'
     environment:
-      # Блока ios_signing здесь нет намеренно: он резолвит профиль из хранилища
-      # Codemagic, а загрузить туда .mobileprovision невозможно — компонент
-      # загрузки не реагирует на файлы. Подпись целиком делаем скриптами.
+      # Подпись берётся из хранилища Codemagic (Settings → Code signing
+      # identities): там лежит distribution-сертификат «Status Window» вместе
+      # с приватным ключом и подтянутые из портала provisioning profiles на
+      # com.emilsgailis.statuswindow. Один сертификат обслуживает все сборки.
+      #
+      # Прежняя схема генерировала ключ заново на каждой сборке
+      # (openssl genrsa) — сертификат оставался, а ключа к нему больше не
+      # было, поэтому каждый запуск просил у Apple новый и упирался в лимит:
+      # «You already have a current Distribution certificate», 409.
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.emilsgailis.statuswindow
       vars:
         BUNDLE_ID: "com.emilsgailis.statuswindow"
         XCODE_WORKSPACE: "Status Window.xcodeproj"
@@ -16,24 +25,6 @@ workflows:
         APP_STORE_APPLE_ID: 6804669472
       xcode: latest
     scripts:
-      - name: Set up keychain
-        script: keychain initialize
-      - name: Fetch signing files
-        script: |
-          # Ключ для сертификата создаём прямо в сборке. Раньше он приходил
-          # переменной CERTIFICATE_PRIVATE_KEY при запуске через API, и запуск
-          # из интерфейса падал на «Cannot save Signing Certificates without
-          # certificate private key». Так секрет ещё и нигде не хранится.
-          # Обратная сторона: каждая сборка выпускает новый
-          # distribution-сертификат, а у Apple их лимит два на аккаунт —
-          # лишние отзывать вручную в портале.
-          openssl genrsa 2048 | openssl pkcs8 -topk8 -nocrypt -out /tmp/signing_key.pem
-          app-store-connect fetch-signing-files "$BUNDLE_ID" \
-            --type IOS_APP_STORE \
-            --certificate-key=@file:/tmp/signing_key.pem \
-            --create
-      - name: Add certificates to keychain
-        script: keychain add-certificates
       - name: Set up provisioning profiles settings on Xcode project
         script: xcode-project use-profiles
       - name: Build ipa for distribution
@@ -44,8 +35,6 @@ workflows:
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
-      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.app
-      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
     publishing:
       app_store_connect:
         auth: integration
