@@ -244,10 +244,41 @@ enum SWFormat {
 // MARK: - Layout metrics
 
 enum SWMetrics {
-    static var screenWidth: CGFloat { UIScreen.main.bounds.width }
-    static var screenHeight: CGFloat { UIScreen.main.bounds.height }
+    /// The window the app is actually drawn in, when there is one.
+    ///
+    /// This matters because of iPad. An iPhone-only app installed on an iPad runs
+    /// in a compatibility window, and there `UIScreen.main.bounds` reports the
+    /// whole display, not the window the app can actually paint in. Anything given
+    /// a *fixed* width derived from `UIScreen` — the Canvas charts below — is then
+    /// laid out wider than the visible area and is clipped off the right edge,
+    /// which is exactly the kind of thing App Review flags under Guideline 4.
+    ///
+    /// On every iPhone the window and the screen are the same size, so taking the
+    /// smaller of the two is an exact no-op there.
+    private static var windowBounds: CGRect? {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .compactMap { $0.keyWindow ?? $0.windows.first }
+            .first?
+            .bounds
+    }
+
+    /// The usable width: the window when one exists, never wider than the screen.
+    static var screenWidth: CGFloat {
+        let screen = UIScreen.main.bounds.width
+        guard let w = windowBounds?.width, w > 0 else { return screen }
+        return min(screen, w)
+    }
+
+    /// The usable height, clamped the same way so bottom rows are not cut off.
+    static var screenHeight: CGFloat {
+        let screen = UIScreen.main.bounds.height
+        guard let h = windowBounds?.height, h > 0 else { return screen }
+        return min(screen, h)
+    }
+
     /// True on 375x667-class hardware, where fixed hero layouts collapse.
-    static var isCompactHeight: Bool { UIScreen.main.bounds.height <= 700 }
+    static var isCompactHeight: Bool { screenHeight <= 700 }
     static let tabBarHeight: CGFloat = 62
     static let scrollBottomInset: CGFloat = 36
     static let cardCorner: CGFloat = 16
