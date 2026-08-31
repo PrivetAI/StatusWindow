@@ -155,6 +155,9 @@ struct SWRootView: View {
                 tabButton(tab)
             }
         }
+        // iPad: the five buttons keep a sane width and centre, while the bar's
+        // own background below still runs edge to edge. No effect on a phone.
+        .swColumnCap(SWMetrics.tabBarMaxWidth)
         .padding(.top, 7)
         .padding(.bottom, 5)
         .background(
