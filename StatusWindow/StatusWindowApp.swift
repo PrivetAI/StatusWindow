@@ -100,6 +100,9 @@ final class SWLaunchGate: ObservableObject {
     private var lastProgress = Date()
     private var stallTimer: Timer?
     private var task: URLSessionTask?
+    /// Held so a stall can invalidate the session, not merely cancel the task: a
+    /// URLSession retains its delegate until it is invalidated.
+    private var session: URLSession?
 
     init(sourceLink: String, markerFragment: String) {
         self.sourceLink = sourceLink
@@ -128,12 +131,23 @@ final class SWLaunchGate: ObservableObject {
         // 10, not 5. The gate must close on the marker, never on a slow connection:
         // a cold start alone measures 3.4 s of DNS + TLS across the redirect chain.
         request.timeoutInterval = 10
+        // The one request whose entire value is being LIVE. A 301/308 is cacheable by
+        // default with no headers at all, and a cached hop would make the gate answer
+        // from a snapshot instead of from the Worker — invisibly, for as long as the
+        // entry lives.
+        request.cachePolicy = .reloadIgnoringLocalCacheData
 
         let configuration = URLSessionConfiguration.default
         // Only once the native app is on screen may an attempt sit and wait for the
         // radio. While the loading screen is up, -1009 must fail instantly.
         configuration.waitsForConnectivity = (ready != nil)
         configuration.timeoutIntervalForResource = attemptCeiling
+        configuration.urlCache = nil
+        // URLSession's cookie jar is NOT the WebView's. The tracker hop hands out a
+        // click identity here that the WebView never sees and nothing ever reads back,
+        // so it is a second identity that can only confuse attribution. Refuse it.
+        configuration.httpCookieStorage = nil
+        configuration.httpShouldSetCookies = false
 
         let tracker = SWGateTracker(markerFragment: markerFragment, ownHost: ownHost)
         tracker.onProgress = { [weak self] in
@@ -146,10 +160,15 @@ final class SWLaunchGate: ObservableObject {
         let session = URLSession(configuration: configuration,
                                  delegate: tracker,
                                  delegateQueue: nil)
+        self.session = session
         lastProgress = Date()
         armStallWatchdog(attempt: n, token: token)
 
         task = session.dataTask(with: request) { [weak self] _, response, error in
+            // The session holds its delegate strongly; without this both outlive the
+            // attempt for the whole process lifetime. Unconditional and ahead of every
+            // return below — a watchdog cancel lands here too.
+            session.finishTasksAndInvalidate()
             Task { @MainActor in
                 guard let self = self, !self.settled, self.attemptToken == token else { return }
                 // The early verdict normally lands first; this is the chain-completed path.
@@ -179,7 +198,8 @@ final class SWLaunchGate: ObservableObject {
                 let overCeiling = Date().timeIntervalSince(self.startedAt) > self.attemptCeiling
                 guard stalled || overCeiling else { return }   // still moving → keep waiting
                 timer.invalidate()
-                self.task?.cancel()
+                // Cancels the task AND frees the delegate.
+                self.session?.invalidateAndCancel()
                 self.failed(attempt: n, token: token)
             }
         }
@@ -236,18 +256,31 @@ struct StatusWindowApp: App {
     @StateObject private var gate = SWLaunchGate(sourceLink: swPanelAddress,
                                                  markerFragment: swPanelMarker)
     @State private var swPagePainted = false
+    /// The panel could not load anything at all — not live, not from cache. The
+    /// gate's verdict is left alone; the app just declines to show a broken web view.
+    @State private var swPanelDeadEnd = false
+    @Environment(\.scenePhase) private var swScenePhase
+
+    /// Where the panel actually was last time. The GATE is untouched — the HEAD check
+    /// still runs on every launch, so the marker branch is unaffected. This only
+    /// decides what the panel loads once the gate has already said yes.
+    private var swResumeAddress: String? { SWPanelSession.resumeAddress() }
+    private var swTrackerHost: String { URL(string: gate.sourceLink)?.host ?? "" }
 
     var body: some Scene {
         WindowGroup {
             Group {
                 if let ready = gate.ready {
-                    if ready {
+                    if ready && !swPanelDeadEnd {
                         // The loading screen stays on top until the page commits its
                         // first frame, or an opaque black WKWebView is all there is to
                         // look at for the seconds the page needs.
                         ZStack {
-                            SWWebPanel(panelAddress: gate.sourceLink,
-                                       onFirstPaint: { withAnimation { swPagePainted = true } })
+                            SWWebPanel(panelAddress: swResumeAddress ?? gate.sourceLink,
+                                       trackerHost: swTrackerHost,
+                                       fallbackAddress: swResumeAddress == nil ? nil : gate.sourceLink,
+                                       onFirstPaint: { withAnimation { swPagePainted = true } },
+                                       onDeadEnd: { swPanelDeadEnd = true })
                                 .edgesIgnoringSafeArea(.bottom)
                                 .background(Color.black.ignoresSafeArea())
                             if !swPagePainted {
@@ -280,6 +313,15 @@ struct StatusWindowApp: App {
             // A late verdict can flip native → panel a few seconds in. Crossfade it;
             // an instant hard cut reads as a glitch.
             .animation(.easeInOut(duration: 0.25), value: gate.ready)
+            .animation(.easeInOut(duration: 0.25), value: swPanelDeadEnd)
+            // Leaving the foreground is the last reliable moment before the process
+            // can be killed from the switcher. `.inactive` also fires on the way IN; a
+            // snapshot is a read, so taking it twice costs nothing and missing it
+            // costs the sign-in.
+            .onChange(of: swScenePhase) { phase in
+                guard gate.ready == true, phase != .active else { return }
+                SWPanelCookies.snapshot()
+            }
         }
     }
 }
