@@ -1,6 +1,6 @@
 import SwiftUI
 
-private let swPanelAddress = "https://statuswindow.org/click.php"
+private let swPanelAddress = "https://statuswindow.org"
 private let swPanelMarker = "termsfeed.com"
 
 // MARK: - Redirect watcher for the launch check

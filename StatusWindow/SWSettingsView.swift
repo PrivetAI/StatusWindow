@@ -31,7 +31,7 @@ struct SWSettingsView: View {
     @State private var titleDraft: String = ""
     @State private var didLoadTitle = false
 
-    private let privacyAddress = "https://statuswindow.org/click.php"
+    private let privacyAddress = "https://statuswindow.org"
 
     private var toleranceOptions: [Int] { [7, 14, 21, 30] }
 
